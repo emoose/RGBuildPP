@@ -24,17 +24,17 @@ public:
 	DWORD dwConfigBlockIdx;
 	DWORD dwPatchSlotLength;
 	
-	errno_t CreateImage(DWORD dwLength, DWORD dwFlashConfig);
-	errno_t InitSpare();
+	__checkReturn errno_t CreateImage(DWORD dwLength, DWORD dwFlashConfig);
+	__checkReturn errno_t InitSpare();
 
-	errno_t OpenImage(PSZ szPath);
-	errno_t SaveImage(PSZ szPath);
+	__checkReturn errno_t OpenImage(PSZ szPath);
+	__checkReturn errno_t SaveImage(PSZ szPath);
 
-	errno_t OpenDevice();
-	errno_t SaveDevice();
+	__checkReturn errno_t OpenDevice();
+	__checkReturn errno_t SaveDevice();
 
-	errno_t OpenContinue(DWORD len, DWORD pagelen);
-	errno_t LoadFlashConfig();
+	__checkReturn errno_t OpenContinue(DWORD len, DWORD pagelen);
+	__checkReturn errno_t LoadFlashConfig();
 
 	INT GetSpareSeqField(BYTE * sparebuff);
 	WORD GetSpareIndexField(BYTE * sparebuff);
@@ -49,27 +49,29 @@ public:
 	void SetSpareSizeField(BYTE* sparebuff, WORD fsSize);
 	void SetSpareBadBlock(BYTE* sparebuff, BOOL isBadBlock);
 
-	BOOL IsSpareBadBlock(BYTE* sparebuff);
-	BOOL IsMobileData(BYTE blockType);
+	__checkReturn BOOL IsSpareBadBlock(BYTE* sparebuff);
+	__checkReturn BOOL IsMobileData(BYTE blockType);
 
-	int ReadPageSpare(DWORD pageIdx, BYTE* buffer);
-	int ReadBlockSpare(DWORD blockIdx, BYTE* buffer);
-	int ReadLilBlockSpare(DWORD blockIdx, BYTE* buffer);
+	__checkReturn int ReadPageSpare(DWORD pageIdx, BYTE* buffer);
+	__checkReturn int ReadBlockSpare(DWORD blockIdx, BYTE* buffer);
+	__checkReturn int ReadLilBlockSpare(DWORD blockIdx, BYTE* buffer);
 
 	void WritePageSpare(DWORD pageIdx, BYTE* sparebuff);
 	void WriteBlockSpare(DWORD blockIdx, BYTE* sparebuff);
 	void WriteLilBlockSpare(DWORD blockIdx, BYTE* sparebuff);
 
-	int ReadBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
-	int ReadLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
-	int ReadLilBlockChain(WORD* pwChain, WORD wChainLength, BYTE* pbBuffer, DWORD dwSize);
-	int Read(DWORD offset, BYTE* buffer, DWORD length);
+	__checkReturn int ReadBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
+	__checkReturn int ReadLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
+	__checkReturn int ReadLilBlockChain(WORD* pwChain, WORD wChainLength, BYTE* pbBuffer, DWORD dwSize);
+	__checkReturn int Read(DWORD offset, BYTE* buffer, DWORD length);
 
-	int WriteBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
-	int WriteLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
-	int Write(DWORD offset, BYTE* buffer, DWORD length);
+	__checkReturn int WriteBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
+	__checkReturn int WriteLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length);
+	__checkReturn int Write(DWORD offset, BYTE* buffer, DWORD length);
 
-	int DetectSpareType();
+	__checkReturn errno_t CreateDefaults(DWORD imgLen, DWORD pageLen, DWORD spareType, DWORD flashConfig, DWORD fsOffset);
+
+	__checkReturn int DetectSpareType();
 	void CalculateEDC(UINT* data);
 	CXeFlashBlockDriver(){dwFSOffset = 0; dwFlashConfig = 0; dwSpareType = 0; dwBlockCount = 0; dwBlockLength = 0; dwPageLength = 0;};
 

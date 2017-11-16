@@ -46,7 +46,7 @@ typedef struct BOOTLOADER_7BL_PERBOX
 	WORD wBlockNumbers[223];
 } BOOTLOADER_7BL_PERBOX, *PBOOTLOADER_7BL_PERBOX;
 
-class CSMC
+class CXeSMC
 {
 public:
 	BYTE * pbData;
@@ -54,11 +54,13 @@ public:
 	BYTE * pbMobo;
 	WORD * pwVersion;
 	BOOL bIsDecrypted;
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	bool UnMunge();
-	bool Munge();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	__checkReturn BOOL UnMunge();
+	__checkReturn BOOL Munge();
 	PSZ GetMobo();
+	__checkReturn BOOL GetHash(BYTE* pbHash, BOOL bUseDecrypted);
+	__checkReturn BOOL GetHash(BYTE* pbHash);
 };
 class CXeBootloader
 {
@@ -68,60 +70,78 @@ public:
 	DWORD cbData;
 	BYTE * pbCPUKey;
 	BYTE * pbPrevBldrKey;
-	BYTE pbRc4Key[0x10];
+	BYTE bRc4Key[0x10];
 	BYTE * pbHmacShaNonce;
 	BOOL bIsDecrypted;
 	WORD wValidMagic;
-	virtual int Load(bool isEncrypted) { return -1; };
-	int LoadBldrHdr();
-	int SaveBldrHdr();
+	
 	CXeBootloader(){pbCPUKey = 0; pbPrevBldrKey = 0; pbData = 0;bIsDecrypted = FALSE;};
-	bool isValid();
+	virtual errno_t Load(BOOL isEncrypted) { return -1; };
+	virtual errno_t Save(BOOL saveEncrypted) { return -1; };
+	void LoadBldrHdr();
+	void SaveBldrHdr();
+	__checkReturn BOOL Resize(DWORD size);
+	void PatchBootloader(BYTE* pbData, DWORD* cbData);
+	__checkReturn BOOL isValid();
+};
+class CXeBootloader1BL : public CXeBootloader
+{
+public:
+	CXeBootloader1BL():CXeBootloader(){this->wValidMagic = 0x4341;};
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
 };
 class CXeBootloader2BL : public CXeBootloader
 {
 public:
 	BOOTLOADER_2BL_PERBOX blPerBoxData;
-	BYTE* bSignature; // 0x100
-	BYTE* bAesInvData; //0x110
+	BYTE* pbSignature; // 0x100
+	BYTE* pbAesInvData; //0x110
 	ULONGLONG ulPostOutputAddr;
 	ULONGLONG ulSbFlashAddr;
 	ULONGLONG ulSocMmioAddr;
-	BYTE* bRsaPublicKey; // 0x110
-	BYTE* b3BLNonce; // 0x10
-	BYTE* b3BLSalt; // 0xA
-	BYTE* b4BLSalt; // 0xA
-	BYTE* b4BLDigest; // 0x14
+	BYTE* pbRsaPublicKey; // 0x110
+	BYTE* pb3BLNonce; // 0x10
+	BYTE* pb3BLSalt; // 0xA
+	BYTE* pb4BLSalt; // 0xA
+	BYTE* pb4BLDigest; // 0x14
 	BOOTLOADER_2BL_ALLOWDATA blAllowData;
 	DWORD dwPadding;
+
+	CXeSMC* pxeSMC;
+
 	CXeBootloader2BL():CXeBootloader(){this->wValidMagic = 0x4342;};
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int Crypt();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	void Crypt();
+	__checkReturn BOOL FixPerBoxDigest();
 };
 class CXeBootloader3BL : public CXeBootloader
 {
 public:
-	BYTE * bSignature; // 0x0:0x100 bytes
+	BYTE * pbSignature; // 0x0:0x100 bytes
+
 	CXeBootloader3BL():CXeBootloader(){this->wValidMagic = 0x4343;};
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int Crypt();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	void Crypt();
 };
 class CXeBootloader4BL : public CXeBootloader
 {
 public:
-	BYTE * bSignature; // 0x100
-	BYTE * bRsaPublicKey; // 0x110
-	BYTE * b6BLNonce; // 0x10
-	BYTE * b6BLSalt; // 0xA
+	BYTE * pbSignature; // 0x100
+	BYTE * pbRsaPublicKey; // 0x110
+	BYTE * pb6BLNonce; // 0x10
+	BYTE * pb6BLSalt; // 0xA
 	WORD wPadding;
-	BYTE * b5BLDigest; // 0x14
-	bool bUsesCpuKey;
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int Crypt(bool isDecrypting);
-	CXeBootloader4BL():CXeBootloader(){this->wValidMagic = 0x4344; bUsesCpuKey = false;};
+	BYTE * pb5BLDigest; // 0x14
+	BOOL bUsesCpuKey;
+	BYTE * pbBetaKitNonce;
+
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	__checkReturn errno_t Crypt(BOOL isDecrypting);
+	CXeBootloader4BL():CXeBootloader(){this->wValidMagic = 0x4344; this->bUsesCpuKey = false;this->pbBetaKitNonce = 0;};
 };
 class CXeBootloader5BL : public CXeBootloader
 {
@@ -129,10 +149,11 @@ public:
 	ULONGLONG ulImageAddr;
 	DWORD dwImageLength;
 	DWORD dwPadding;
+
 	CXeBootloader5BL():CXeBootloader(){this->wValidMagic = 0x4345;};
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int Crypt();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	void Crypt();
 };
 class CXeBootloader6BL : public CXeBootloader
 {
@@ -143,34 +164,37 @@ public:
 	DWORD dw7BLLength;
 	BOOTLOADER_7BL_PERBOX bl7BLPerBoxData;
 	BOOTLOADER_6BL_PERBOX bl6BLPerBoxData;
-	BYTE * bSignature; // 0x100
-	BYTE * b7BLNonce; // 0x10
-	BYTE * b7BLDigest; // 0x14
+	BYTE * pbSignature; // 0x100
+	BYTE * pb7BLNonce; // 0x10
+	BYTE * pb7BLDigest; // 0x14
 	DWORD dwPadding;
+
 	CXeBootloader6BL():CXeBootloader(){this->wValidMagic = 0x4346;};
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int Crypt();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	void Crypt();
+	__checkReturn BOOL FixPerBoxDigest();
 };
 class CXeBootloader7BL : public CXeBootloader
 {
 public:
 	DWORD dwSourceImageLength;
-	BYTE * bSourceDigest; // 0x14
+	BYTE * pbSourceDigest; // 0x14
 	DWORD dwTargetImageLength;
-	BYTE * bTargetDigest; // 0x14
+	BYTE * pbTargetDigest; // 0x14
 	DWORD dw6BLLength;
+
 	CXeBootloader7BL():CXeBootloader(){this->wValidMagic = 0x4347;};
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int Crypt();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	void Crypt();
 };
 class CXeBootloaderFlash : public CXeBootloader
 {
 public:
 	BYTE bCopyrightSign;
-	CHAR * bCopyright; // 0x3F
-	BYTE * bReserved; // 0x10
+	CHAR bCopyright[0x3F]; // 0x3F
+	BYTE bReserved[0x10]; // 0x10
 	DWORD dwKeyVaultLength;
 	DWORD dwSysUpdateAddr;
 	WORD wSysUpdateCount;
@@ -181,8 +205,11 @@ public:
 	DWORD dwSmcLength;
 	DWORD dwSmcAddr;
 	WORD wRgbpIndicator;
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
+
+
+	__checkReturn errno_t CreateDefaults();
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
 };
 
 #endif

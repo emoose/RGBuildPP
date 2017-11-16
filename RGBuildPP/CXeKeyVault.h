@@ -2,10 +2,10 @@
 #define _CXEKEYVAULT_H
 typedef struct _KV_CONTROLLER_DATA
 {
-DWORD dwKey1Idx;
-DWORD dwKey2Idx;
-BYTE dwKey1Data[0x10];
-BYTE dwKey2Data[0x10];
+	DWORD dwKey1Idx;
+	DWORD dwKey2Idx;
+	BYTE dwKey1Data[0x10];
+	BYTE dwKey2Data[0x10];
 } KV_CONTROLLER_DATA, *PKV_CONTROLLER_DATA;
 
 typedef struct _CONSOLE_PUBLIC_KEY {
@@ -28,7 +28,10 @@ typedef struct _XE_CONSOLE_CERTIFICATE {
 
 typedef struct _XE_KEYVAULT_DATA {
 	BYTE bKeyVaultNonce[0x10];							// 0x0
-	BYTE bKeyVaultHash[0x8];							// 0x10
+	BYTE bKeyVaultPairData[0x8];						// 0x10 - not sure what this really is, seems to be first 8 bytes of bootloader/secured hmacsha-rc4 file nonces
+														// which on stock are all equal to each other and have the pairing data from CB as first 3 bytes (observed on stock trinity nand)
+														// could just be random data, and MS got lazy with randomizing stuff on newer models?
+
 	BYTE b0ManufacturingMode;							// 0x18
 	BYTE b1AlternativeKeyVault;							// 0x19
 	BYTE b2RestrictedPrivilegesFlags;					// 0x1A
@@ -100,14 +103,14 @@ public:
 	BYTE bRc4Key[0x10];
 	BYTE * pbHmacShaNonce;
 	WORD * pwKeyVaultVersion; // pointer to KeyVaultVersion field in flash header
-	XE_CONSOLE_CERTIFICATE * kxeConsoleCertificate;
 	BOOL bIsDecrypted;
-	int RandomizeKeys();
-	int RepairDesKeys();
-	int Crypt(bool isDecrypting);
-	int Load(bool isEncrypted);
-	int Save(bool saveEncrypted);
-	int CalculateNonce(BYTE* pbNonceBuff, DWORD cbNonceBuff);
+
+	__checkReturn errno_t RandomizeKeys();
+	__checkReturn errno_t RepairDesKeys();
+	__checkReturn errno_t Crypt(BOOL isDecrypting);
+	__checkReturn errno_t Load(BOOL isEncrypted);
+	__checkReturn errno_t Save(BOOL saveEncrypted);
+	__checkReturn errno_t CalculateNonce(BYTE* pbNonceBuff, DWORD cbNonceBuff);
 	CXeKeyVault(){pbCPUKey = 0; pbHmacShaNonce = 0;};
 };
 #endif

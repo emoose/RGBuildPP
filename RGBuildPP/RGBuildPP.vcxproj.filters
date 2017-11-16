@@ -9,6 +9,24 @@
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
+    <Filter Include="Source Files\nand">
+      <UniqueIdentifier>{f5cb3dbb-d9e2-45fb-b62d-353e3f7abcbb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\nand">
+      <UniqueIdentifier>{7276876d-4ae0-4574-9488-3c757ce37d0a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\util">
+      <UniqueIdentifier>{54818a34-948c-46d9-aaba-722071e8bd0c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\util\xenon">
+      <UniqueIdentifier>{91495d29-9658-486e-b671-e20d50ad1528}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\util">
+      <UniqueIdentifier>{f27906d3-9415-4648-a81c-01f9e4c70ca4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\util\xenon">
+      <UniqueIdentifier>{e275bc01-053f-4149-85fb-09b6b3ddb0c5}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="ReadMe.txt" />
@@ -17,35 +35,47 @@
     <ClInclude Include="stdafx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="XeCrypt.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="version.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="util.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="xekernelp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SFCX.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CXeFlashImage.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="CXeBootloaders.h">
+      <Filter>Header Files\nand</Filter>
     </ClInclude>
     <ClInclude Include="CXeFlashBlockDriver.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\nand</Filter>
     </ClInclude>
     <ClInclude Include="CXeFlashFileSystem.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\nand</Filter>
+    </ClInclude>
+    <ClInclude Include="CXeFlashImage.h">
+      <Filter>Header Files\nand</Filter>
     </ClInclude>
     <ClInclude Include="CXeKeyVault.h">
-      <Filter>Header Files</Filter>
+      <Filter>Header Files\nand</Filter>
     </ClInclude>
-    <ClInclude Include="CXeBootloaders.h">
-      <Filter>Header Files</Filter>
+    <ClInclude Include="dirent.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="xekernelp.h">
+      <Filter>Header Files\util\xenon</Filter>
+    </ClInclude>
+    <ClInclude Include="XeCrypt.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="SFCX.h">
+      <Filter>Header Files\util\xenon</Filter>
+    </ClInclude>
+    <ClInclude Include="ini.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="INIReader.h">
+      <Filter>Header Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="rgbp.h">
+      <Filter>Header Files\nand</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -55,23 +85,29 @@
     <ClCompile Include="RGBuildPP.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SFCX.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CXeKeyVault.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="CXeBootloaders.cpp">
+      <Filter>Source Files\nand</Filter>
     </ClCompile>
     <ClCompile Include="CXeFlashBlockDriver.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CXeFlashImage.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\nand</Filter>
     </ClCompile>
     <ClCompile Include="CXeFlashFileSystem.cpp">
-      <Filter>Source Files</Filter>
+      <Filter>Source Files\nand</Filter>
     </ClCompile>
-    <ClCompile Include="CXeBootloaders.cpp">
-      <Filter>Source Files</Filter>
+    <ClCompile Include="CXeFlashImage.cpp">
+      <Filter>Source Files\nand</Filter>
+    </ClCompile>
+    <ClCompile Include="CXeKeyVault.cpp">
+      <Filter>Source Files\nand</Filter>
+    </ClCompile>
+    <ClCompile Include="SFCX.cpp">
+      <Filter>Source Files\util\xenon</Filter>
+    </ClCompile>
+    <ClCompile Include="INIReader.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="ini.cpp">
+      <Filter>Source Files\util</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

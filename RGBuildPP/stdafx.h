@@ -4,10 +4,14 @@
 //
 
 #pragma once
-
+#define _CRTDBG_MAP_ALLOC
+#include <stdlib.h>
+#include <crtdbg.h>
 #include <stdio.h>
 #include <iostream>
+#include <sstream>
 #include <assert.h>
+#include <direct.h>
 #include <io.h>   // For access().
 #include <sys/types.h>  // For stat().
 #include <sys/stat.h>   // For stat().

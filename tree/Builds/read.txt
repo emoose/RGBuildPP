@@ -1,0 +1,10 @@
+to add a build, make sure:
+1. its 5BL loader is in the Bootloaders\ folder (with magic at 0x0 set to CE)
+2. the filesystem is in the Builds\<buildno>\ folder (or Builds\<buildno>-dev\ for dev kernels)
+3. you have a bootloaders.ini file in the Builds\<buildno>\ folder which has info on the bootloaders used for each motherboard
+4. you either have a precompiled RGLP file in Builds\<build>\ folder, or have the 2BL_B.s, 4BL.s and KHV.s files (or JTAG.s maybe) in the Builds\<build>\Patches\
+
+if a precompiled RGLP exists RGBuild++ should use that, if not some wizardry will be in place to compile the .s files (maybe not on xbox builds though?)
+>>> NOTE: RGLP FILES FOLLOW SAME BASIC FORMAT AS FREEBOOT PATCHES NOW! (or should at least)
+loaderpatch was a horribly coded app, used because I didn't know one simple (ba... *sigh*) instruction at the time
+but now it's no longer needed :) SO DON'T USE IT

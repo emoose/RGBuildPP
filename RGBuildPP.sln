@@ -1,14 +1,12 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 11.00
-# Visual Studio 2010
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RGBuildPP", "RGBuildPP\RGBuildPP.vcxproj", "{561149DA-E11E-45E6-8CBB-349C90288E4C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		CodeAnalysis|Win32 = CodeAnalysis|Win32
 		CodeAnalysis|Xbox 360 = CodeAnalysis|Xbox 360
-		Debug_Win32|Win32 = Debug_Win32|Win32
-		Debug_Win32|Xbox 360 = Debug_Win32|Xbox 360
 		Debug|Win32 = Debug|Win32
 		Debug|Xbox 360 = Debug|Xbox 360
 		Profile_FastCap|Win32 = Profile_FastCap|Win32
@@ -23,31 +21,20 @@ Global
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.CodeAnalysis|Win32.ActiveCfg = CodeAnalysis|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.CodeAnalysis|Win32.Build.0 = CodeAnalysis|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.CodeAnalysis|Xbox 360.ActiveCfg = CodeAnalysis|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.CodeAnalysis|Xbox 360.Build.0 = CodeAnalysis|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug_Win32|Win32.ActiveCfg = Debug_Win32|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug_Win32|Win32.Build.0 = Debug_Win32|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug_Win32|Win32.Deploy.0 = Debug_Win32|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug_Win32|Xbox 360.ActiveCfg = Debug_Win32|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug_Win32|Xbox 360.Build.0 = Debug_Win32|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug_Win32|Xbox 360.Deploy.0 = Debug_Win32|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Win32.ActiveCfg = Debug|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Win32.Build.0 = Debug|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Win32.Deploy.0 = Debug|Xbox 360
+		{561149DA-E11E-45E6-8CBB-349C90288E4C}.CodeAnalysis|Xbox 360.ActiveCfg = CodeAnalysis|Win32
+		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Win32.Build.0 = Debug|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Xbox 360.ActiveCfg = Debug|Xbox 360
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Debug|Xbox 360.Build.0 = Debug|Xbox 360
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile_FastCap|Win32.ActiveCfg = Profile_FastCap|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile_FastCap|Win32.Build.0 = Profile_FastCap|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile_FastCap|Xbox 360.ActiveCfg = Profile_FastCap|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile_FastCap|Xbox 360.Build.0 = Profile_FastCap|Xbox 360
+		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile_FastCap|Xbox 360.ActiveCfg = Profile_FastCap|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile|Win32.ActiveCfg = Profile|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile|Win32.Build.0 = Profile|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile|Xbox 360.ActiveCfg = Profile|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile|Xbox 360.Build.0 = Profile|Xbox 360
+		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Profile|Xbox 360.ActiveCfg = Profile|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release_LTCG|Win32.ActiveCfg = Release_LTCG|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release_LTCG|Win32.Build.0 = Release_LTCG|Win32
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release_LTCG|Xbox 360.ActiveCfg = Release_LTCG|Xbox 360
-		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release_LTCG|Xbox 360.Build.0 = Release_LTCG|Xbox 360
+		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release_LTCG|Xbox 360.ActiveCfg = Release_LTCG|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release|Win32.ActiveCfg = Release|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release|Win32.Build.0 = Release|Win32
 		{561149DA-E11E-45E6-8CBB-349C90288E4C}.Release|Xbox 360.ActiveCfg = Release|Xbox 360

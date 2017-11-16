@@ -16,14 +16,20 @@ class CXeFlashFileSystemRoot
 public:
 	CXeFlashBlockDriver* xepBlkDriver;
 	int dwVersion;
-	BYTE * pbData;
-	DWORD cbData;
+	WORD wBlkIdx;
 	WORD * pwBlockMap;
+	DWORD cbBlockMap;
 	FLASHFILESYSTEM_ENTRY * pfsEntries;
-	DWORD fscbEntries;
+	DWORD cfsEntries;
 
-	BOOL ChainAllocBlock(PWORD pwBlkIdx);
-	BOOL ChainAllocBlocks(WORD wBlksNeeded, WORD wMinBlk, PWORD pwBlkIdx);
+	
+	CXeFlashFileSystemRoot(){xepBlkDriver = 0; dwVersion = 0; wBlkIdx = 0;pwBlockMap = 0;cbBlockMap = 0;pfsEntries = 0;cfsEntries=0;};
+
+	__checkReturn errno_t ChainAllocBlock(PWORD pwBlkIdx);
+	__checkReturn errno_t ChainAllocBlocks(WORD wBlksNeeded, WORD wMinBlk, PWORD pwBlkIdx);
+
+	WORD * ChainGetFromStart(WORD wStartBlock, PWORD pwChainLength);
+	WORD ChainGetPrevious(WORD wBlkIdx);
 
 	void ChainFreeChain(WORD wBlkIdx);
 
@@ -31,10 +37,13 @@ public:
 	WORD * ChainGetChain(WORD wStartBlock, DWORD limit, PWORD pwChainLength);
 	DWORD ChainSetChainData(WORD wStartBlock, BYTE* pbData, DWORD cbData);
 
+	FLASHFILESYSTEM_ENTRY* FileSearch(PSZ szName);
 	BYTE * FileGetData(FLASHFILESYSTEM_ENTRY* fsEntry);
-	void FileSetData(FLASHFILESYSTEM_ENTRY* fsEntry, BYTE* pbData, DWORD cbData);
-
+	__checkReturn errno_t FileSetData(FLASHFILESYSTEM_ENTRY* fsEntry, BYTE* pbData, DWORD cbData);
+	__checkReturn errno_t FileAdd(PSZ szFileName, FLASHFILESYSTEM_ENTRY** pfsEntry);
 	FLASHFILESYSTEM_ENTRY* FindEntry(PSZ szName);
-	errno_t Load();
+
+	__checkReturn errno_t Load(WORD wBlkIdx);
+	__checkReturn errno_t Save(WORD wBlkIdx);
 };
 #endif

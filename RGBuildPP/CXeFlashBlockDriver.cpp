@@ -4,7 +4,7 @@
 #ifdef _XBOX
 #include "SFCX.h"
 #endif
-BOOL CXeFlashBlockDriver::IsMobileData(BYTE blockType)
+__checkReturn BOOL CXeFlashBlockDriver::IsMobileData(BYTE blockType)
 {
 	if((blockType & 0x30) != 0x30)
 		return FALSE;
@@ -19,7 +19,7 @@ void CXeFlashBlockDriver::SetSpareBadBlock(BYTE* sparebuff, BOOL isBadBlock)
 	else
 		*(sparebuff + 0x5) = (isBadBlock ? 0x0 : 0xFF);
 }
-BOOL CXeFlashBlockDriver::IsSpareBadBlock(BYTE* sparebuff)
+__checkReturn BOOL CXeFlashBlockDriver::IsSpareBadBlock(BYTE* sparebuff)
 {
 	if(dwSpareType == 2)
 		return *(sparebuff) != 0xFF;
@@ -162,30 +162,30 @@ void CXeFlashBlockDriver::WritePageSpare(DWORD pageIdx, BYTE* sparebuff)
 	memcpy(pbImageData + (pageIdx * this->dwPageLength) + 0x200, sparebuff, 0x10);
 }
 
-int CXeFlashBlockDriver::ReadBlockSpare(DWORD dwBlockIdx, BYTE* buffer)
+__checkReturn int CXeFlashBlockDriver::ReadBlockSpare(DWORD dwBlockIdx, BYTE* buffer)
 {
 	memcpy(buffer, pbImageData + (dwBlockIdx * this->dwBlockLengthReal) + 0x200, 0x10);
 	return 0;
 }
-int CXeFlashBlockDriver::ReadLilBlockSpare(DWORD dwBlockIdx, BYTE* buffer)
+__checkReturn int CXeFlashBlockDriver::ReadLilBlockSpare(DWORD dwBlockIdx, BYTE* buffer)
 {
 	memcpy(buffer, pbImageData + (dwBlockIdx * this->dwLilBlockLengthReal) + 0x200, 0x10);
 	return 0;
 }
-int CXeFlashBlockDriver::ReadPageSpare(DWORD dwPageIdx, BYTE* buffer)
+__checkReturn int CXeFlashBlockDriver::ReadPageSpare(DWORD dwPageIdx, BYTE* buffer)
 {
 	memcpy(buffer, pbImageData + (dwPageIdx * this->dwPageLength) + 0x200, 0x10);
 	return 0;
 }
-int CXeFlashBlockDriver::ReadBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
+__checkReturn int CXeFlashBlockDriver::ReadBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
 {
 	return this->Read(blkIdx * this->dwBlockLength, buffer, length);
 }
-int CXeFlashBlockDriver::ReadLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
+__checkReturn int CXeFlashBlockDriver::ReadLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
 {
 	return this->Read(blkIdx * this->dwLilBlockLength, buffer, length);
 }
-int CXeFlashBlockDriver::ReadLilBlockChain(WORD* pwChain, WORD wChainLength, BYTE* pbBuffer, DWORD dwSize)
+__checkReturn int CXeFlashBlockDriver::ReadLilBlockChain(WORD* pwChain, WORD wChainLength, BYTE* pbBuffer, DWORD dwSize)
 {	DWORD i = 0;
 	DWORD blockcount = dwSize / this->dwLilBlockLength + (dwSize % this->dwLilBlockLength > 0 ? 1 : 0);
 	DWORD toread = dwSize;
@@ -216,15 +216,15 @@ int CXeFlashBlockDriver::ReadLilBlockChain(WORD* pwChain, WORD wChainLength, BYT
 	}
 	return totalread;
 }
-int CXeFlashBlockDriver::WriteBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
+__checkReturn int CXeFlashBlockDriver::WriteBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
 {
 	return this->Write(blkIdx * this->dwBlockLength, buffer, length);
 }
-int CXeFlashBlockDriver::WriteLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
+__checkReturn int CXeFlashBlockDriver::WriteLilBlock(DWORD blkIdx, BYTE* buffer, DWORD length)
 {
 	return this->Write(blkIdx * this->dwLilBlockLength, buffer, length);
 }
-int CXeFlashBlockDriver::Write(DWORD offset, BYTE* buffer, DWORD length)
+__checkReturn int CXeFlashBlockDriver::Write(DWORD offset, BYTE* buffer, DWORD length)
 {
 	int offintopage = offset % 512;
 	int pagecount = (length - offintopage) / 512 + ((length - offintopage) % 512 > 0 ? 1 : 0);
@@ -251,7 +251,7 @@ int CXeFlashBlockDriver::Write(DWORD offset, BYTE* buffer, DWORD length)
 	}
 	return totalwrote;
 }
-int CXeFlashBlockDriver::Read(DWORD offset, BYTE* buffer, DWORD length)
+__checkReturn int CXeFlashBlockDriver::Read(DWORD offset, BYTE* buffer, DWORD length)
 {
 	int offintopage = offset % 512;
 	int pagecount = (length - offintopage) / 512 + ((length - offintopage) % 512 > 0 ? 1 : 0);
@@ -278,7 +278,7 @@ int CXeFlashBlockDriver::Read(DWORD offset, BYTE* buffer, DWORD length)
 	}
 	return totalread;
 }
-errno_t CXeFlashBlockDriver::InitSpare()
+__checkReturn errno_t CXeFlashBlockDriver::InitSpare()
 {
 	// first lets set all the pages
 	BYTE spare[0x10];
@@ -301,12 +301,15 @@ errno_t CXeFlashBlockDriver::InitSpare()
 	}
 	return 0;
 }
-errno_t CXeFlashBlockDriver::CreateImage(DWORD dwLength, DWORD dwFlashConfig)
+__checkReturn errno_t CXeFlashBlockDriver::CreateImage(DWORD dwLength, DWORD dwFlashConfig)
 {
+	errno_t ret;
 	pbImageData = (BYTE*)malloc(dwLength);
 	this->dwFlashConfig = dwFlashConfig;
-	this->LoadFlashConfig();
-	this->InitSpare();
+	if(ret = this->LoadFlashConfig() != 0)
+		return ret;
+	if(ret = this->InitSpare() != 0)
+		return ret;
 	return 0;
 }
 void CXeFlashBlockDriver::CalculateEDC(UINT * data)
@@ -335,43 +338,32 @@ void CXeFlashBlockDriver::CalculateEDC(UINT * data)
     edc[0xE] = (val >> 10) & 0xFF;
     edc[0xF] = (val >> 18) & 0xFF;
 }
-errno_t CXeFlashBlockDriver::SaveImage(PSZ szPath)
+__checkReturn errno_t CXeFlashBlockDriver::SaveImage(PSZ szPath)
 {
 	// lets do a quick recalc of the ecc
 	for(DWORD i = 0; i < this->dwPageCount; i++)
 		this->CalculateEDC((UINT*)(this->pbImageData + (i * 0x210)));
 	
-	FILE * file;
-	errno_t err = fopen_s(&file, szPath, "wb+");
-	if(err != 0)
+	if(errno_t err = saveData(szPath, this->pbImageData, this->dwImageLengthReal) != 0)
 		return err;
-	fwrite(this->pbImageData, 1, this->dwImageLengthReal, file);
-	fclose(file);
 	return 0;
 }
-errno_t CXeFlashBlockDriver::OpenImage(PSZ szPath)
+__checkReturn errno_t CXeFlashBlockDriver::OpenImage(PSZ szPath)
 {
-	FILE * file;
-	errno_t err = fopen_s(&file, szPath, "rb+");
-	if(err != 0)
+	DWORD len;
+	if(errno_t err = readData(szPath, &this->pbImageData, &len) != 0)
 		return err;
-	fseek(file, 0, SEEK_END);
-	DWORD len = ftell(file);
-	pbImageData = (BYTE*)malloc(len);
-	fseek(file, 0, SEEK_SET);
-	fread(pbImageData, 1, len, file);
-	fclose(file);
 	return this->OpenContinue(len, 528);
 }
-errno_t CXeFlashBlockDriver::SaveDevice()
+__checkReturn errno_t CXeFlashBlockDriver::SaveDevice()
 {
 	// we should probably switch to loading from blocks instead of from pages
 #ifdef _XBOX
-	Log(0, "SFCX init\n");
+	Log(0, "CXeFlashBlockDriver::SaveDevice: SFCX init\n");
 	int config = sfcx_init();
 	if (sfc.initialized != SFCX_INITIALIZED)
 	{
-		Log(3, "NAND init failed!\n");
+		Log(3, "CXeFlashBlockDriver::SaveDevice: NAND init failed!\n");
 		return 1;
 	}
 	
@@ -389,7 +381,7 @@ errno_t CXeFlashBlockDriver::SaveDevice()
 
 	Log(0, "   NAND:size_pages      = %08X\n", sfc.size_pages);
 	Log(0, "   NAND:size_blocks     = %08X\n\n", sfc.size_blocks);
-	Log(0, "writing NAND...\n");
+	Log(0, "CXeFlashBlockDriver::SaveDevice: writing NAND...\n");
 	DWORD len = sfc.size_bytes_phys;
 	// only read 64MB
 	if(len > 69206016) len = 69206016;
@@ -407,14 +399,14 @@ errno_t CXeFlashBlockDriver::SaveDevice()
 #endif
 	return 2;
 }
-errno_t CXeFlashBlockDriver::OpenDevice()
+__checkReturn errno_t CXeFlashBlockDriver::OpenDevice()
 {
 #ifdef _XBOX
-	Log(0, "SFCX init\n");
+	Log(0, "CXeFlashBlockDriver::OpenDevice: SFCX init\n");
 	int config = sfcx_init();
 	if (sfc.initialized != SFCX_INITIALIZED)
 	{
-		Log(3, "NAND init failed!\n");
+		Log(3, "CXeFlashBlockDriver::OpenDevice: NAND init failed!\n");
 		return 1;
 	}
 	
@@ -432,7 +424,7 @@ errno_t CXeFlashBlockDriver::OpenDevice()
 
 	Log(0, "   NAND:size_pages      = %08X\n", sfc.size_pages);
 	Log(0, "   NAND:size_blocks     = %08X\n\n", sfc.size_blocks);
-	Log(0, "reading NAND...\n");
+	Log(0, "CXeFlashBlockDriver::OpenDevice: reading NAND...\n");
 	DWORD len = sfc.size_bytes_phys;
 	// only read 64MB
 	if(len > 69206016) len = 69206016;
@@ -449,26 +441,50 @@ errno_t CXeFlashBlockDriver::OpenDevice()
 #endif
 	return 2;
 }
-int CXeFlashBlockDriver::DetectSpareType()
+__checkReturn int CXeFlashBlockDriver::DetectSpareType()
 {
 	WORD blockIdx = 0;
 	// small block
-	blockIdx = (this->pbImageData[0x4400 + 0x1] << 8) | (this->pbImageData[0x4400 + 0x0]);
+	blockIdx = ((this->pbImageData[0x4400 + 0x1] & 0xF) << 8) | (this->pbImageData[0x4400 + 0x0]);
 	if (blockIdx == 1 && this->pbImageData[0x4400 + 0x5] == 0xFF)
 		return 0;
 
 	// big on small
-    blockIdx = (this->pbImageData[0x4400 + 0x2] << 8) | (this->pbImageData[0x4400 + 0x1]);
+    blockIdx = ((this->pbImageData[0x4400 + 0x2] & 0xF) << 8) | (this->pbImageData[0x4400 + 0x1]);
 	if (blockIdx == 1 && this->pbImageData[0x4400 + 0x5] == 0xFF)
 		return 1;
 
 	// big block
-    blockIdx = (this->pbImageData[0x21200 + 0x2] << 8) | (this->pbImageData[0x21200 + 0x1]);
+    blockIdx = ((this->pbImageData[0x21200 + 0x2] & 0xF) << 8) | (this->pbImageData[0x21200 + 0x1]);
 	if (blockIdx == 1 && this->pbImageData[0x21200 + 0x0] == 0xFF)
 		return 2;
     return -1;
 }
-errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen)
+__checkReturn errno_t CXeFlashBlockDriver::CreateDefaults(DWORD imgLen, DWORD pageLen, DWORD spareType, DWORD flashConfig, DWORD fsOffset)
+{
+	this->dwPageLength = pageLen;
+	this->dwImageLengthReal = imgLen;
+	this->pbImageData = (BYTE*)malloc(this->dwImageLengthReal);
+	memset(this->pbImageData, 0x00, this->dwImageLengthReal);
+	this->dwSpareType = spareType;
+	this->dwFlashConfig = flashConfig;
+	this->dwFSOffset = fsOffset;
+	errno_t ret = this->LoadFlashConfig();
+	if(ret != 0)
+		return ret;
+	// fix up the spare data
+	BYTE spare[0x10];
+	for(DWORD i = 0; i < this->dwPageCount; i++)
+	{
+		memset(&spare, 0, 0x10);
+		this->SetSpareBadBlock(spare, FALSE);
+		DWORD blkIdx = (i / (this->dwLilBlockLength / 0x200));
+		this->SetSpareIndexField(spare, (WORD)blkIdx);
+		this->WritePageSpare(i, spare);
+	}
+	return 0;
+}
+__checkReturn errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen)
 {
 	this->dwPageLength = pagelen;
 	this->dwImageLengthReal = len;
@@ -492,7 +508,7 @@ errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen)
 					case 1:
 						this->dwFlashConfig = 0x00023010;  //Jasper 16M new SB
 						break;
-					case 3:
+					case 2:
 						this->dwFlashConfig = 0x00023010;  //Trinity 16MB
 						break;
 				}
@@ -523,8 +539,7 @@ errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen)
 				this->dwFlashConfig = 0x00AA3020;
 				break;
 			default:
-				Log(3, "unknown NAND size!\n");
-				Log(3, "handling as 16MB!\n");
+				Log(3, "CXeFlashBlockDriver::OpenContinue: unknown NAND size, handling as 16MB!\n");
 				this->dwFlashConfig = 0x01198010;
 				this->dwBlockLength = 0x4000;
 				this->dwBlockCount = 0x400;
@@ -532,7 +547,7 @@ errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen)
 	}
 	return this->LoadFlashConfig();
 }
-errno_t CXeFlashBlockDriver::LoadFlashConfig()
+__checkReturn errno_t CXeFlashBlockDriver::LoadFlashConfig()
 {
 	
 	this->dwPatchSlotLength = 0x10000;
@@ -594,6 +609,7 @@ errno_t CXeFlashBlockDriver::LoadFlashConfig()
 		this->dwBlockLengthReal = this->dwBlockLength;
 	}
 	this->dwPageCount = this->dwLilBlockCount * 0x20;
+	Log(0, "CXeFlashBlockDriver::LoadFlashConfig:\n");
 	Log(0, "page length:\t\t0x%04x\n", this->dwPageLength);
 	Log(0, "nand length:\t\t0x%08x\n", this->dwImageLengthReal);
 	Log(0, "nand data length:\t0x%08x\n", this->dwBlockCount * this->dwBlockLength);
