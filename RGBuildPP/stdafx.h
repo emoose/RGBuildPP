@@ -5,12 +5,19 @@
 
 #pragma once
 
-#include "targetver.h"
-#include <stdarg.h>
-
 #include <stdio.h>
-#include <tchar.h>
-
-
+#include <iostream>
+#include <assert.h>
+#include <io.h>   // For access().
+#include <sys/types.h>  // For stat().
+#include <sys/stat.h>   // For stat().
+#ifdef _XBOX
+#include <xtl.h>
+#include <xboxmath.h>
+#endif
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#endif
 
 // TODO: reference additional headers your program requires here

@@ -1,5 +1,5 @@
 // stdafx.cpp : source file that includes just the standard includes
-// RGBuild3Win32.pch will be the pre-compiled header
+// RGBuildPP.pch will be the pre-compiled header
 // stdafx.obj will contain the pre-compiled type information
 
 #include "stdafx.h"
