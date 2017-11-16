@@ -2,11 +2,13 @@
 #include "CXeFlashImage.h"
 #include "util.h"
 #include "INIReader.h"
+#include "version.h"
 
 // shhh... lets not leak our hard work
-#ifdef _DEBUG
+#if !RGB_VER_MIN
 #include "rgbp.h"
 #endif
+
 using namespace std;
 __checkReturn errno_t CXeFlashImage::CreateDefaults(DWORD imgLen, DWORD pageLen, DWORD spareType, DWORD flashConfig, DWORD fsOffset)
 {
@@ -44,7 +46,7 @@ __checkReturn errno_t CXeFlashImage::LoadImageFile(PSZ szPath)
 __checkReturn errno_t CXeFlashImage::SaveImageFile(PSZ szPath)
 {
 	this->SaveContinue();
-	//this->LoadContinue();
+	this->LoadContinue();
 	Log(1, "CXeFlashImage::SaveImageFile: saving image to file %s\n", szPath);
 	return this->xeBlkDriver.SaveImage(szPath);
 }
@@ -277,7 +279,7 @@ __checkReturn errno_t CXeFlashImage::SaveFileSystems()
 
 			this->xeBlkDriver.SetSparePageCountField(spare, 0x20 - pagecount);
 			this->xeBlkDriver.SetSpareSizeField(spare, pagecount * 0x200);
-			// need to fix more spare fields?
+			// TODO: fix more spare fields?
 			this->xeBlkDriver.WritePageSpare(this->pxeMobileData[i].dwPage + z, spare); 
 		}
 	}
@@ -287,6 +289,18 @@ __checkReturn errno_t CXeFlashImage::SaveFileSystems()
 		Log(1, "CXeFlashImage::SaveFileSystems: saving filesystem to block 0x%x\n", this->pxeFileSystems[i].wBlkIdx);
 		this->pxeFileSystems[i].Save(this->pxeFileSystems[i].wBlkIdx);
 	}
+
+	if(!strcmp(this->xeSMC.GetMobo(), "Corona") && this->xeBlkDriver.dwSpareType == 3)
+		for(DWORD i = 0; i < 2; i++)
+			if(this->xeCoronaData[i].dwFSVersion > 0)
+			{
+				this->xeCoronaData[i].wFSBlockIdx = bswap16(this->xeCoronaData[i].wFSBlockIdx);
+				this->xeCoronaData[i].dwFSVersion = bswap32(this->xeCoronaData[i].dwFSVersion);
+			
+				XeCryptSha((u8*)&this->xeCoronaData[i].dwUnknown, sizeof(XE_CORONA_FS_DATA) - 0x14, 0, 0, 0, 0, (u8*)&this->xeCoronaData[i].bSectionDigest, 0x14);
+				this->xeBlkDriver.Write(0x2FE8000 + (0x4000 * i), (BYTE*)&this->xeCoronaData[i], sizeof(XE_CORONA_FS_DATA));
+			}
+	
 	return 0;
 }
 __checkReturn errno_t CXeFlashImage::Close()
@@ -403,16 +417,31 @@ __checkReturn errno_t CXeFlashImage::LoadFileSystems()
 	this->xecbFileSystems = 0;
 	this->pxeFileSystems = 0;
 	WORD* fsBlks = (WORD*)malloc(0x77 * sizeof(WORD));
-	for(WORD i = 0; i < this->xeBlkDriver.dwLilBlockCount; i++)
+	if(!strcmp(this->xeSMC.GetMobo(), "Corona") && this->xeBlkDriver.dwSpareType == 3)
 	{
-		this->xeBlkDriver.ReadLilBlockSpare(i, (BYTE*)&spare);
-		BYTE blktype = this->xeBlkDriver.GetSpareBlockTypeField(spare);
-		int seq = this->xeBlkDriver.GetSpareSeqField(spare);
-		if(seq != 0 && ((blktype & 0x3F) == 0x2C || (blktype & 0x3F) == 0x30))
+		// TODO: fix this up in case only one of the slots are filled
+		for(DWORD i = 0; i < 2; i++)
 		{
-			// got a filesystem?
-			fsBlks[this->xecbFileSystems] = i;
-			this->xecbFileSystems++;
+			this->xeBlkDriver.Read(0x2FE8000 + (i*0x4000), (BYTE*)&this->xeCoronaData[i], sizeof(XE_CORONA_FS_DATA));
+			this->xeCoronaData[i].wFSBlockIdx = bswap16(this->xeCoronaData[i].wFSBlockIdx);
+			this->xeCoronaData[i].dwFSVersion = bswap32(this->xeCoronaData[i].dwFSVersion);
+			fsBlks[i] = this->xeCoronaData[i].wFSBlockIdx;
+		}
+		this->xecbFileSystems = 2;
+	}
+	else
+	{
+		for(WORD i = 0; i < this->xeBlkDriver.dwLilBlockCount; i++)
+		{
+			this->xeBlkDriver.ReadLilBlockSpare(i, (BYTE*)&spare);
+			BYTE blktype = this->xeBlkDriver.GetSpareBlockTypeField(spare);
+			int seq = this->xeBlkDriver.GetSpareSeqField(spare);
+			if(seq != 0 && ((blktype & 0x3F) == 0x2C || (blktype & 0x3F) == 0x30))
+			{
+				// got a filesystem?
+				fsBlks[this->xecbFileSystems] = i;
+				this->xecbFileSystems++;
+			}
 		}
 	}
 	this->pxeFileSystems = (CXeFlashFileSystemRoot*)malloc(this->xecbFileSystems * sizeof(CXeFlashFileSystemRoot));
@@ -425,6 +454,8 @@ __checkReturn errno_t CXeFlashImage::LoadFileSystems()
 		CXeFlashFileSystemRoot root;
 		root.xepBlkDriver = &this->xeBlkDriver;
 		root.wBlkIdx = fsBlks[i];
+		if(i < 2 && this->xeCoronaData[i].dwFSVersion > 0)
+			root.xepCoronaData = &this->xeCoronaData[i];
 		root.Load(fsBlks[i]);
 		if(root.dwVersion > latestver)
 		{
@@ -449,9 +480,10 @@ __checkReturn errno_t CXeFlashImage::LoadFileSystems()
 	free(fsBlks);
 	Log(0, "CXeFlashImage::LoadFileSystems: loading mobile data pages...\n");
 	// now to load mobile data
-	DWORD* mobilePages = (DWORD*)malloc(4096 * sizeof(DWORD));//[4096];
-	BYTE* mobilePageTypes = (BYTE*)malloc(4096);//[4096];
-	DWORD* mobilePageVers = (DWORD*)malloc(4096 * sizeof(DWORD));//[4096];
+	// TODO: corona 4gb
+	DWORD* mobilePages = (DWORD*)malloc(4096 * sizeof(DWORD));
+	BYTE* mobilePageTypes = (BYTE*)malloc(4096);
+	DWORD* mobilePageVers = (DWORD*)malloc(4096 * sizeof(DWORD));
 	DWORD pageCount = 0;
 	for(DWORD i = 0; i < this->xeBlkDriver.dwPageCount; i++)
 	{
@@ -510,6 +542,7 @@ __checkReturn errno_t CXeFlashImage::LoadFileSystems()
 	// alloc our mobile pointer
 	this->pxeMobileData = (FLASHMOBILEDATA*)malloc(realMobileCount * sizeof(FLASHMOBILEDATA));
 	DWORD latestMobileData[9];
+	memset((void*)&latestMobileData, 0, sizeof(DWORD) * 9);
 	for(int i = 0; i < realMobileCount; i++)
 	{
 		this->xeBlkDriver.ReadPageSpare(realMobilePages[i], (BYTE*)&spare);
@@ -606,37 +639,42 @@ __checkReturn errno_t CXeFlashImage::LoadKeyVaults()
 }
 __checkReturn errno_t CXeFlashImage::DumpKeyVaults(PSZ path)
 {
-	if((this->blFlash.blHdr.wMagic & 0x4F) == 0x4F)
+	if(this->blFlash.blHdr.wBuild >= 1838)
 	{
-		CHAR pathBuff[4096];
+		//CHAR pathBuff[4096];
 		if(!directoryExists(path))
 			CreateDirectory(path, NULL);
-		BOOL altkv = !this->xeKeyVault.bIsDecrypted ? FALSE : (this->xeKeyVault.xeData.b1AlternativeKeyVault != 0);
+		BOOL altkv = !this->xeKeyVault.bIsDecrypted ? false : (this->xeKeyVault.xeData.b1AlternativeKeyVault != 0);
 
 		this->xeKeyVault.Save(!this->xeKeyVault.bIsDecrypted);
 		Log(1, "CXeFlashImage::DumpKeyVaults: dumping KeyVault (%s)...\n", this->xeKeyVault.bIsDecrypted ? "dec" : "enc");
-		sprintf_s(pathBuff, 4096, "%s\\KV%s.bin", path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
-		saveData(pathBuff, (BYTE*)&this->xeKeyVault.xeData, 0x4000);
+		//sprintf_s(pathBuff, 4096, "%s\\KV%s.bin", path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
+		//saveData(pathBuff, (BYTE*)&this->xeKeyVault.xeData, 0x4000);
+		saveDataf("%s\\KV%s.bin", (BYTE*)&this->xeKeyVault.xeData, 0x4000, path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
 
 		this->xeKeyVault.Save(this->xeKeyVault.bIsDecrypted);
 
 		Log(1, "CXeFlashImage::DumpKeyVaults: dumping KeyVault (%s)...\n", this->xeKeyVault.bIsDecrypted ? "dec" : "enc");
-		sprintf_s(pathBuff, 4096, "%s\\KV%s.bin", path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
-		saveData(pathBuff, (BYTE*)&this->xeKeyVault.xeData, 0x4000);
+		//sprintf_s(pathBuff, 4096, "%s\\KV%s.bin", path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
+		//saveData(pathBuff, (BYTE*)&this->xeKeyVault.xeData, 0x4000);
+		saveDataf("%s\\KV%s.bin", (BYTE*)&this->xeKeyVault.xeData, 0x4000, path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
 
 		this->xeKeyVault.Save(!this->xeKeyVault.bIsDecrypted);
 
 		if(!altkv)
 			return 0;
+
 		Log(1, "CXeFlashImage::DumpKeyVaults: (alt) dumping KeyVault (%s)...\n", this->xeAltKeyVault.bIsDecrypted ? "dec" : "enc");
-		sprintf_s(pathBuff, 4096, "%s\\AltKV%s.bin", path, (this->xeKeyVault.bIsDecrypted ? "_dec" : ""));
-		saveData(pathBuff, (BYTE*)&this->xeAltKeyVault.xeData, 0x4000);
+		//sprintf_s(pathBuff, 4096, "%s\\AltKV%s.bin", path, (this->xeAltKeyVault.bIsDecrypted ? "_dec" : ""));
+		//saveData(pathBuff, (BYTE*)&this->xeAltKeyVault.xeData, 0x4000);
+		saveDataf("%s\\AltKV%s.bin", (BYTE*)&this->xeAltKeyVault.xeData, 0x4000, path, (this->xeAltKeyVault.bIsDecrypted ? "_dec" : ""));
 
 		this->xeAltKeyVault.Save(!this->xeAltKeyVault.bIsDecrypted);
 
 		Log(1, "CXeFlashImage::DumpKeyVaults: (alt) dumping KeyVault (%s)...\n", this->xeAltKeyVault.bIsDecrypted ? "dec" : "enc");
-		sprintf_s(pathBuff, 4096, "%s\\AltKV%s.bin", path, (this->xeAltKeyVault.bIsDecrypted ? "_dec" : ""));
-		saveData(pathBuff, (BYTE*)&this->xeAltKeyVault.xeData, 0x4000);
+		//sprintf_s(pathBuff, 4096, "%s\\AltKV%s.bin", path, (this->xeAltKeyVault.bIsDecrypted ? "_dec" : ""));
+		//saveData(pathBuff, (BYTE*)&this->xeAltKeyVault.xeData, 0x4000);
+		saveDataf("%s\\AltKV%s.bin", (BYTE*)&this->xeAltKeyVault.xeData, 0x4000, path, (this->xeAltKeyVault.bIsDecrypted ? "_dec" : ""));
 
 		this->xeAltKeyVault.Save(!this->xeAltKeyVault.bIsDecrypted);
 	}
@@ -645,12 +683,13 @@ __checkReturn errno_t CXeFlashImage::DumpKeyVaults(PSZ path)
 
 __checkReturn errno_t CXeFlashImage::DumpSMC(PSZ path)
 {
-	CHAR pathBuff[4096];
+	//CHAR pathBuff[4096];
 	if(!directoryExists(path))
 		CreateDirectory(path, NULL);
 	Log(1, "CXeFlashImage::DumpSMC: dumping SMC (%s)...\n", this->xeSMC.bIsDecrypted ? "dec" : "enc");
-	sprintf_s(pathBuff, 4096, "%s\\SMC%s.bin", path, (this->xeSMC.bIsDecrypted ? "_dec" : ""));
-	saveData(pathBuff, this->xeSMC.pbData, this->xeSMC.cbData);
+	//sprintf_s(pathBuff, 4096, "%s\\SMC%s.bin", path, (this->xeSMC.bIsDecrypted ? "_dec" : ""));
+	//saveData(pathBuff, this->xeSMC.pbData, this->xeSMC.cbData);
+	saveDataf("%s\\SMC%s.bin", this->xeSMC.pbData, this->xeSMC.cbData, path, (this->xeSMC.bIsDecrypted ? "_dec" : ""));
 
 	if(!this->xeSMC.bIsDecrypted)
 		this->xeSMC.UnMunge();
@@ -658,8 +697,9 @@ __checkReturn errno_t CXeFlashImage::DumpSMC(PSZ path)
 		this->xeSMC.Munge();
 
 	Log(1, "CXeFlashImage::DumpSMC: dumping SMC (%s)...\n", this->xeSMC.bIsDecrypted ? "dec" : "enc");
-	sprintf_s(pathBuff, 4096, "%s\\SMC%s.bin", path, this->xeSMC.bIsDecrypted ? "_dec" : "");
-	saveData(pathBuff, this->xeSMC.pbData, this->xeSMC.cbData);
+	//sprintf_s(pathBuff, 4096, "%s\\SMC%s.bin", path, this->xeSMC.bIsDecrypted ? "_dec" : "");
+	//saveData(pathBuff, this->xeSMC.pbData, this->xeSMC.cbData);
+	saveDataf("%s\\SMC%s.bin", this->xeSMC.pbData, this->xeSMC.cbData, path, (this->xeSMC.bIsDecrypted ? "_dec" : ""));
 
 	if(!this->xeSMC.bIsDecrypted)
 		this->xeSMC.UnMunge();
@@ -679,7 +719,7 @@ CHAR* CXeFlashImage::GetMobileName(BYTE bType)
 __checkReturn errno_t CXeFlashImage::DumpFiles(PSZ path)
 {
 	// TODO: dump payloads
-	CHAR pathBuff[4096];
+	//CHAR pathBuff[4096];
 	CXeFlashFileSystemRoot* fs = this->GetFS();
 	if(fs == NULL)
 		return 1;
@@ -690,16 +730,17 @@ __checkReturn errno_t CXeFlashImage::DumpFiles(PSZ path)
 		if(fs->pfsEntries[i].cFileName[0] == '_')
 			continue;
 		Log(1, "CXeFlashImage::DumpFiles: dumping file %s (size:0x%x)\n", fs->pfsEntries[i].cFileName, fs->pfsEntries[i].dwLength);
-		sprintf_s(pathBuff, 4096, "%s\\%s", path, fs->pfsEntries[i].cFileName);
 		BYTE* buffer = fs->FileGetData(&fs->pfsEntries[i]);
 		if(buffer == NULL)
 			return 1;
-		saveData(pathBuff, buffer, fs->pfsEntries[i].dwLength);
+		//sprintf_s(pathBuff, 4096, "%s\\%s", path, fs->pfsEntries[i].cFileName);
+		//saveData(pathBuff, buffer, fs->pfsEntries[i].dwLength);
+		saveDataf("%s\\%s", buffer, fs->pfsEntries[i].dwLength, path, fs->pfsEntries[i].cFileName);
 		free(buffer);
 		// save meta data
-		sprintf_s(pathBuff, 4096, "%s\\%s.meta", path, fs->pfsEntries[i].cFileName);
-		saveData(pathBuff, (BYTE*)&fs->pfsEntries[i].dwTimeStamp, 4);
-		memset(&pathBuff, 0, 4096);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.meta", path, fs->pfsEntries[i].cFileName);
+		//saveData(pathBuff, (BYTE*)&fs->pfsEntries[i].dwTimeStamp, 4);
+		saveDataf("%s\\%s.meta", (BYTE*)&fs->pfsEntries[i].dwTimeStamp, 4, path, fs->pfsEntries[i].cFileName);
 	}
 	// now lets try dumping the mobile data
 	for(DWORD i = 0; i < 9; i++)
@@ -707,11 +748,12 @@ __checkReturn errno_t CXeFlashImage::DumpFiles(PSZ path)
 		if(this->xedwLatestMobileData[i] <= -1)
 			continue;
 		DWORD idx = this->xedwLatestMobileData[i];
+		FLASHMOBILEDATA* data = &pxeMobileData[idx];
 		char* name = this->GetMobileName(pxeMobileData[idx].bDataType);
-		Log(1, "CXeFlashImage::DumpFiles: dumping mobile file %s (size: 0x%x, pg: 0x%x, seq: 0x%x)\n", name, pxeMobileData[idx].cbData, pxeMobileData[idx].dwPage, pxeMobileData[idx].dwDataSequence);
-		sprintf_s(pathBuff, 4096, "%s\\%s.bin", path, name);
-		saveData(pathBuff, pxeMobileData[idx].pbData, pxeMobileData[idx].cbData);
-		memset(&pathBuff, 0, 4096);
+		Log(1, "CXeFlashImage::DumpFiles: dumping mobile file %s (size: 0x%x, pg: 0x%x, seq: 0x%x)\n", name, data->cbData, data->dwPage, data->dwDataSequence);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.bin", path, name);
+		//saveData(pathBuff, pxeMobileData[idx].pbData, pxeMobileData[idx].cbData);
+		saveDataf("%s\\%s.bin", data->pbData, data->cbData, path, name);
 		free((void*)name); 
 	}
 	return 0;
@@ -1126,7 +1168,7 @@ __checkReturn errno_t CXeFlashImage::WriteImageIni(PSZ inipath)
 	str << "\r\n\r\n";
 	str << "[Bootloaders]\r\n";
 
-	// TODO: fix for beta kits?
+	// TODO: fix for beta kits
 
 	char bl = 'C';
 	if(this->bl2BL[0].isValid() && (this->bl2BL[0].blHdr.wMagic & 0x1000) == 0x1000)
@@ -1169,83 +1211,83 @@ __checkReturn errno_t CXeFlashImage::WriteImageIni(PSZ inipath)
 }
 __checkReturn errno_t CXeFlashImage::DumpBootloaders(PSZ path)
 {
-	CHAR pathBuff[4096];
 	if(!directoryExists(path))
 		CreateDirectory(path, NULL);
 	if(this->bl1BL.isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 1BL_B...\n");
-		sprintf_s(pathBuff, 4096, "%s\\1BL_B.%d.bin", path, this->bl1BL.blHdr.wBuild);
-		saveData(pathBuff, this->bl1BL.pbData, this->bl1BL.blHdr.dwLength);
+		saveDataf("%s\\1BL_B.%d.bin", this->bl1BL.pbData, this->bl1BL.blHdr.dwLength, path, this->bl1BL.blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\1BL_B.%d.bin", path, this->bl1BL.blHdr.wBuild);
+		//saveData(pathBuff, this->bl1BL.pbData, this->bl1BL.blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl2BL[0].isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 2BL_A...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s_A.%d.bin", path, ((this->bl2BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SB" : "CB", this->bl2BL[0].blHdr.wBuild);
-		saveData(pathBuff, this->bl2BL[0].pbData, this->bl2BL[0].blHdr.dwLength);
+		saveDataf("%s\\%s_A.%d.bin", this->bl2BL[0].pbData, this->bl2BL[0].blHdr.dwLength, path, ((this->bl2BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SB" : "CB", this->bl2BL[0].blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s_A.%d.bin", path, ((this->bl2BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SB" : "CB", this->bl2BL[0].blHdr.wBuild);
+		//saveData(pathBuff, this->bl2BL[0].pbData, this->bl2BL[0].blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl2BL[1].isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 2BL_B...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s_B.%d.bin", path, ((this->bl2BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SB" : "CB", this->bl2BL[1].blHdr.wBuild);
-		saveData(pathBuff, this->bl2BL[1].pbData, this->bl2BL[1].blHdr.dwLength);
+		saveDataf("%s\\%s_B.%d.bin", this->bl2BL[1].pbData, this->bl2BL[1].blHdr.dwLength, path, ((this->bl2BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SB" : "CB", this->bl2BL[1].blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s_B.%d.bin", path, ((this->bl2BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SB" : "CB", this->bl2BL[1].blHdr.wBuild);
+		//saveData(pathBuff, this->bl2BL[1].pbData, this->bl2BL[1].blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl3BL.isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 3BL...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl3BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SC" : "CC", this->bl3BL.blHdr.wBuild);
-		saveData(pathBuff, this->bl3BL.pbData, this->bl3BL.blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl3BL.pbData, this->bl3BL.blHdr.dwLength, path, ((this->bl3BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SC" : "CC", this->bl3BL.blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl3BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SC" : "CC", this->bl3BL.blHdr.wBuild);
+		//saveData(pathBuff, this->bl3BL.pbData, this->bl3BL.blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl4BL.isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 4BL...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl4BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SD" : "CD", this->bl4BL.blHdr.wBuild);
-		saveData(pathBuff, this->bl4BL.pbData, this->bl4BL.blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl4BL.pbData, this->bl4BL.blHdr.dwLength, path, ((this->bl4BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SD" : "CD", this->bl4BL.blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl4BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SD" : "CD", this->bl4BL.blHdr.wBuild);
+		//saveData(pathBuff, this->bl4BL.pbData, this->bl4BL.blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl5BL.isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 5BL...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl5BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SE" : "CE", this->bl5BL.blHdr.wBuild);
-		saveData(pathBuff, this->bl5BL.pbData, this->bl5BL.blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl5BL.pbData, this->bl5BL.blHdr.dwLength, path, ((this->bl5BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SE" : "CE", this->bl5BL.blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl5BL.blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SE" : "CE", this->bl5BL.blHdr.wBuild);
+		//saveData(pathBuff, this->bl5BL.pbData, this->bl5BL.blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl6BL[0].isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 6BL (slot0)...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl6BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SF" : "CF", this->bl6BL[0].blHdr.wBuild);
-		saveData(pathBuff, this->bl6BL[0].pbData, this->bl6BL[0].blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl6BL[0].pbData, this->bl6BL[0].blHdr.dwLength, path, ((this->bl6BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SF" : "CF", this->bl6BL[0].blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl6BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SF" : "CF", this->bl6BL[0].blHdr.wBuild);
+		//saveData(pathBuff, this->bl6BL[0].pbData, this->bl6BL[0].blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl7BL[0].isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 7BL (slot0)...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl7BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SG" : "CG", this->bl7BL[0].blHdr.wBuild);
-		saveData(pathBuff, this->bl7BL[0].pbData, this->bl7BL[0].blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl7BL[0].pbData, this->bl7BL[0].blHdr.dwLength, path, ((this->bl7BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SG" : "CG", this->bl7BL[0].blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl7BL[0].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SG" : "CG", this->bl7BL[0].blHdr.wBuild);
+		//saveData(pathBuff, this->bl7BL[0].pbData, this->bl7BL[0].blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl6BL[1].isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 6BL (slot1)...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl6BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SF" : "CF", this->bl6BL[1].blHdr.wBuild);
-		saveData(pathBuff, this->bl6BL[1].pbData, this->bl6BL[1].blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl6BL[1].pbData, this->bl6BL[1].blHdr.dwLength, path, ((this->bl6BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SF" : "CF", this->bl6BL[1].blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl6BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SF" : "CF", this->bl6BL[1].blHdr.wBuild);
+		//saveData(pathBuff, this->bl6BL[1].pbData, this->bl6BL[1].blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	if(this->bl7BL[1].isValid())
 	{
 		Log(1, "CXeFlashImage::DumpBootloaders: dumping 7BL (slot1)...\n");
-		sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl7BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SG" : "CG", this->bl7BL[1].blHdr.wBuild);
-		saveData(pathBuff, this->bl7BL[1].pbData, this->bl7BL[1].blHdr.dwLength);
+		saveDataf("%s\\%s.%d.bin", this->bl7BL[1].pbData, this->bl7BL[1].blHdr.dwLength, path, ((this->bl7BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SG" : "CG", this->bl7BL[1].blHdr.wBuild);
+		//sprintf_s(pathBuff, 4096, "%s\\%s.%d.bin", path, ((this->bl7BL[1].blHdr.wMagic & 0x1000) == 0x1000 || this->pbCPUKey == 0) ? "SG" : "CG", this->bl7BL[1].blHdr.wBuild);
+		//saveData(pathBuff, this->bl7BL[1].pbData, this->bl7BL[1].blHdr.dwLength);
 	}
-	memset(pathBuff, 0, 4096);
 	Log(1, "CXeFlashImage::DumpBootloaders: dumping config blocks...\n");
-	sprintf_s(pathBuff, 4096, "%s\\smc_config.bin", path);
+	//sprintf_s(pathBuff, 4096, "%s\\smc_config.bin", path);
 	BYTE* blkBuff = this->GetConfigBlocks();
-	saveData(pathBuff, blkBuff, 4 * this->xeBlkDriver.dwBlockLength);
+	saveDataf("%s\\smc_config.bin", blkBuff, 4 * this->xeBlkDriver.dwBlockLength, path);
+	//saveData(pathBuff, blkBuff, 4 * this->xeBlkDriver.dwBlockLength);
 	free(blkBuff);
 	return 0;
 }

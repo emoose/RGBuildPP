@@ -1,7 +1,7 @@
 #ifndef _CXeFLASHBLOCKDRIVER_H_
 #define _CXeFLASHBLOCKDRIVER_H_
 
-inline void Log(int priority, const char* szFormat, ...);
+extern void Log(int priority, const char* szFormat, ...);
 
 class CXeFlashBlockDriver
 {

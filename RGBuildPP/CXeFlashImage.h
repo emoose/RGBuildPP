@@ -9,15 +9,6 @@
 
 inline void Log(int priority, const char* szFormat, ...);
 
-typedef struct _FLASHMOBILEDATA
-{
-	BYTE bDataType;
-	DWORD dwDataSequence;
-	DWORD dwPage;
-	BYTE* pbData;
-	DWORD cbData;
-} FLASHMOBILEDATA, *PFLASHMOBILEDATA;
-
 typedef struct _RGBUILD_PAYLOAD
 {
 	DWORD dwOffset;
@@ -47,6 +38,7 @@ public:
 	CXeFlashBlockDriver xeBlkDriver;
 	CXeFlashFileSystemRoot * pxeFileSystems;
 	DWORD xecbFileSystems;
+	XE_CORONA_FS_DATA xeCoronaData[2];
 	FLASHMOBILEDATA * pxeMobileData;
 	DWORD xecbMobileData;
 	int xedwLatestMobileData[9]; // B/C/D/E/F/G/H/I/J

@@ -913,7 +913,7 @@ NTSYSAPI EXPORTNUM(343) extern PXBOX_KRNL_VERSION XboxKrnlBaseVersion;
 NTSYSAPI EXPORTNUM(344) extern PXBOX_KRNL_VERSION XboxKrnlVersion; 
 // 0x0193 - XexExecutableModuleHandle;
 NTSYSAPI EXPORTNUM(403) extern PLDR_DATA_TABLE_ENTRY* XexExecutableModuleHandle; 
-// 0x0194 - XexCheckExecutablePrivilege
+// 0x0194 - XexCheckExecutable
 NTSYSAPI EXPORTNUM(404) BOOLEAN NTAPI XexCheckExecutablePrivilege(IN DWORD dwPrivilege); 
 // 0x0195 - XexGetModuleHandle
 NTSYSAPI EXPORTNUM(405) DWORD NTAPI XexGetModuleHandle(IN PSZ szModuleName, IN OUT PHANDLE dwHandle); 

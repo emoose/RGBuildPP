@@ -113,4 +113,86 @@ public:
 	__checkReturn errno_t CalculateNonce(BYTE* pbNonceBuff, DWORD cbNonceBuff);
 	CXeKeyVault(){pbCPUKey = 0; pbHmacShaNonce = 0;};
 };
+
+typedef struct _XE_FCRT_DATA
+{
+	BYTE bSignature[0x100];
+	// signature is made from hmac sha of next 0x40 bytes
+	BYTE bAesIv[0x10];
+	DWORD dwUnknown; // this & 0x7ffffffe must be 0
+	DWORD dwUnknown2; // must be 1
+	DWORD dwDataLength; // can't be 0 or higher than 0x3ec0
+	DWORD dwDataOffset; // must be higher than 0x140
+	BYTE bUnknown[0xC];
+	BYTE bDigest[0x14];
+	BYTE bData[0x3ec0];
+} XE_FCRT_DATA, *PXE_FCRT_DATA;
+
+typedef struct _XE_CERTIFICATE_REVOCATION_DATA
+{
+	DWORD dwLength;
+	DWORD dwVersion;
+	DWORD dwCount;
+	BYTE bRevokedDigests[0x884]; // each 0x14 is another entry, digest is sha1 of console security cert?
+} XE_CERTIFICATE_REVOCATION_DATA, *PXE_CERTIFICATE_REVOCATION_DATA;
+
+typedef struct _XE_CERTIFICATE_REVOCATION_BOX_DATA
+{
+	BYTE bFileTimestamp[0x8]; // should match crl.bin timestamp/meta in nand
+	BYTE bUnknown[0x7];
+	BYTE bLockDownValue;
+} XE_CERTIFICATE_REVOCATION_BOX_DATA, *PXE_CERTIFICATE_REVOCATION_BOX_DATA;
+
+
+typedef struct _XE_CRL_DATA
+{
+	DWORD dwMagic; // CRLP / CRLL
+	BYTE bConsoleId[0x5];
+	BYTE bPadding[0x3];
+	BYTE bDigest[0x14];
+	BYTE bSignature[0x100]; // CRLP = XEKEY_CONSTANT_PIRS_KEY, CRLL = XEKEY_CONSTANT_LIVE_KEY
+	BYTE bAesNonce[0x10];
+	BYTE bAesKey1[0x10]; // decrypt using AesEcb with CPU key
+	// decrypt following with AesCbc using bAesNonce
+	XE_CERTIFICATE_REVOCATION_BOX_DATA xeBoxData;
+	// decrypt with AesCbc and updated IV? TODO: check this shit out
+	XE_CERTIFICATE_REVOCATION_DATA xeData;
+} XE_CRL_DATA, *PXE_CRL_DATA;
+
+
+typedef struct _XE_SEC_DATA
+{
+	BYTE bPairingData[0x3];
+	BYTE bPadding[0x3];
+	BYTE bSecurityInitialised;
+	BYTE bLockDownValue;
+	BYTE bFileTimestamp[0x8]; // should match crl.bin timestamp/meta in nand
+	BYTE bDetectedViolations;
+	ULONGLONG qwSecurityActivated;
+	ULONGLONG qwDvdDisconnectedCount;
+	ULONGLONG qwLockSystemUpdateCount;
+	BYTE WhateverMan[0x4000];
+} XE_SEC_DATA, *PXE_SEC_DATA;
+
+typedef struct _XE_EXTENDED_KV_DATA
+{
+	BYTE WhateverMan[0x4000];
+} XE_EXTENDED_KV_DATA, *PXE_EXTENDED_KV_DATA;
+
+typedef struct _XE_DAE_DATA
+{
+	BYTE WhateverMan[0x4000];
+} XE_DAE_DATA, *PXE_DAE_DATA;
+
+class CXeFlashSecuredFiles
+{
+public:
+	XE_FCRT_DATA xeFcrtData;
+	XE_SEC_DATA xeSecData;
+	XE_EXTENDED_KV_DATA xeExtKVData;
+	XE_DAE_DATA xeDaeData;
+	XE_CRL_DATA xeCrlData;
+	BYTE * pbCPUKey;
+
+};
 #endif

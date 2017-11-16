@@ -63,6 +63,15 @@ void Log(int priority, const char* szFormat, ...)
 #endif
 	printf(szBuff);
 }
+__checkReturn errno_t saveDataf(const char* szPathFormat, BYTE * data, DWORD dwLength, ...)
+{
+	char szBuff[4096];
+	va_list arg;
+	va_start(arg, dwLength);
+	_vsnprintf_s(szBuff, sizeof(szBuff), szPathFormat, arg);
+	va_end(arg);
+	return saveData(szBuff, data, dwLength);
+}
 #ifdef _XBOX
 //--------------------------------------------------------------------------------------
 // Name: MountDevice()
@@ -212,18 +221,30 @@ int MainContinue(int argc, char* argv[])
 	BOOL rc4mode = FALSE;
 	byte rc4key[0x10];
 	DWORD rc4offset = 0;
+
+#ifndef _DEBUG
 	loglvl = 1; // default log level to 1
+#endif
+
 	if(argc <= 1 || (argc == 2 && (!_stricmp(argv[argc-1], "/?") || !_stricmp(argv[argc-1], "-?"))))
 	{
 		// usage
 		//TODO: map command
-		DbgPrint("RGBuildPP [/V] [/MAP] [/CPU KEY] [/1BL KEY] [/E PATH] [/C INIPATH] imagepath\n", RGB_VER);
-		DbgPrint("/V - verbose mode\n");
-		DbgPrint("/MAP - show map of file\n");
-		DbgPrint("/CPU - set cpukey\n");
-		DbgPrint("/1BL - set 1blkey\n");
-		DbgPrint("/E - extract all\n");
-		DbgPrint("/C - create image\n");
+		DbgPrint("usage:\n");
+		DbgPrint("RGBuildPP [/V] [/MAP] [/CPU KEY] [/1BL KEY] [/E PATH] [/C INIPATH] imagepath\n");
+		DbgPrint("\n=RGBuild options\n");
+		DbgPrint("Option\tParameters\tExplanation\n");
+		DbgPrint("/?\t\t\tshow this usage\n");
+		DbgPrint("/V\t\t\tverbose logging mode\n");
+		DbgPrint("/CPU\tcpu_key\t\tset cpu key\n");
+		DbgPrint("/1BL\t1bl_key\t\tset 1bl key\n");
+		DbgPrint("/RC4\tkey offset\tdoes rc4 crypto on file starting from offset, using\n\t\t\t16-byte key (used for testing)\n\n");
+		DbgPrint("/S\t\t\tstrips file of edc/spare data\n");
+		DbgPrint("\n=Image options\n");
+		DbgPrint("Option\tParameters\tExplanation\n");
+		DbgPrint("/E\tpath\t\textract image\n");
+		DbgPrint("/C\tini_path\tcreate image from ini\n");
+		DbgPrint("/MAP\t\t\tprint map of image(!)\n");
 		return 0;
 	}
 
@@ -235,9 +256,9 @@ int MainContinue(int argc, char* argv[])
 			loglvl = -1;
 			continue;
 		}
-		if(!_stricmp(argv[i], "/r") || !_stricmp(argv[i], "-r")) // verbose
+		if(!_stricmp(argv[i], "/rc4") || !_stricmp(argv[i], "-rc4")) // rc4
 		{
-			Log(2, "rc4 decrypt mode\n");
+			Log(2, "rc4 crypt mode\n");
 			rc4mode = TRUE;
 			strToBytes(argv[i+1], (BYTE*)&rc4key, 0x10);
 			char* end;
@@ -301,14 +322,24 @@ int MainContinue(int argc, char* argv[])
 			DWORD len;
 			readData(imagepath, &data, &len);
 			XeCryptRc4(rc4key, 0x10, data + rc4offset, len - rc4offset);
-			saveData("C:\\dec.bin", data, len);
+			//saveData("C:\\dec.bin", data, len);
+			saveDataf("%s.dec", data, len, imagepath);
 		}
 		if(stripmode)
 		{
 			BYTE* data;
 			DWORD len;
 			readData(imagepath, &data, &len);
-			FILE* file = fopen("C:\\lol.bin", "wb+");
+			char pathBuff[4096];
+			sprintf_s(pathBuff, 4096, "%s.stripped.bin", imagepath);
+//			FILE* file = fopen(pathBuff, "wb+");
+			FILE* file;
+			errno_t err = fopen_s(&file, pathBuff, "wb+");
+			if(err != 0)
+			{
+				Log(3, "can't open %s for writing!\n", pathBuff);
+				return 0;
+			}
 			for(DWORD i = 0; i < (len / 0x210); i++)
 			{
 				fwrite(data + (i*0x210), 0x1, 0x200, file);
@@ -335,6 +366,7 @@ int MainContinue(int argc, char* argv[])
 			}
 			img.SaveImageFile(imagepath);
 		}
+
 	DbgPrint("\n");
 	if(extractall)
 	{
@@ -363,6 +395,7 @@ int MainContinue(int argc, char* argv[])
 /* XBOX RGBUILD */
 int XboxContinue(int argc, char* argv[])
 {
+	errno_t ret;
 	// mount all our devices
 	CHAR szSourceDevice[64];
 	for(int i = 0;i < sizeof(xDevices)/sizeof(X360_DEVICE); i++)
@@ -372,7 +405,7 @@ int XboxContinue(int argc, char* argv[])
 			xDevices[i].Success = TRUE;
 			continue;
 		}
-		MountDevice(xDevices[i].Device, xDevices[i].Drive);
+		mountDevice(xDevices[i].Device, xDevices[i].Drive);
 		sprintf_s( szSourceDevice,"%s\\", xDevices[i].Drive );
 		if(GetFileAttributes(szSourceDevice) != 0xFFFFFFFF)
 		{
@@ -390,6 +423,7 @@ int XboxContinue(int argc, char* argv[])
 	ret = img.LoadFlashDevice();
 	
 	HalReturnToFirmware(1);
+	return ret;
 }
 #endif
 string tempDir;
@@ -409,18 +443,41 @@ int __cdecl main(int argc, char* argv[])
 {
 	BOOL saveLog = FALSE;
 	char logPath[4096];
+	char cwd[4096];
+	errno_t ret = 0;
+	INIReader* reader = new INIReader("config.ini");
+	
+	// hack to make full build string appear in exe
+	char* buildstr = (char*)&rgbBuildStrFull;
+
+	_CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );
+
 	strcpy_s(logPath, 4096, "RGBuildPPLog.txt");
+
 	DbgPrint("\n**************************************************************\n");
 	DbgPrint("*              RGBuild++ - the next generation!              *\n");
-	DbgPrint("*    version %d by stoker25, tydye81 and #RGLoader@EFnet    *\n", RGB_BLD);
+	DbgPrint("*          by stoker25, tydye81 and #RGLoader@EFnet          *\n");
 	DbgPrint("*                                                            *\n");
-	DbgPrint("*                                                %s BUILD *\n", RGB_PLT);
+	DbgPrint("*                                                            *\n"); // 60 spaces
+	DbgPrint("*");
+	int numspaces = 60 - 6 - strlen(RGB_VER_STR_TAG) - 1;
+	for(int i = 0; i < numspaces; i++)
+		DbgPrint(" ");
+	DbgPrint("build %s *\n", RGB_VER_STR_TAG);
+	//if(loglvl > 0)
+	//	DbgPrint("*                                       build %s *\n", rgbBuildStr);
+	//else
+	//	DbgPrint("* build %s\n", rgbBuildStrFull);
 	DbgPrint("**************************************************************\n\n");
+	
+	//6.2.8102.101.x86fre.winmain_win8m3.110830-1739.92eb4451821f0730
 
-	char cwd[4096];
-	DbgPrint("working directory: %s\n", _getcwd(cwd, 255));
+	DbgPrint("working directory:\n%s\n\n", _getcwd(cwd, 255));
+
+#ifdef _DEBUG
 	DbgPrint("===TODO===%s\n\n", RGB_TODO);
-	INIReader* reader = new INIReader("config.ini");
+#endif
+
 	if(reader->ParseError() == 0)
 	{
 		// TODO: rest of these settings
@@ -450,17 +507,13 @@ int __cdecl main(int argc, char* argv[])
 	img.pb1BLKey = (BYTE*)&b1blkey;
 	img.pbCPUKey = (BYTE*)&bcpukey;
 
-#ifndef _XENON
-	errno_t ret = MainContinue(argc, argv);
+#ifndef _XBOX
+	ret = MainContinue(argc, argv);
 #else
-	errno_t ret = XboxContinue(argc, argv);
+	ret = XboxContinue(argc, argv);
 #endif
 
 	img.Close();
-
-#ifdef _DEBUG
-	_CrtDumpMemoryLeaks();
-#endif
 
 	if(_chdir(cwd) != 0)
 		Log(3, "failed re-opening directory %s!\n", cwd);
@@ -468,13 +521,13 @@ int __cdecl main(int argc, char* argv[])
 	if(saveLog)
 		saveData(logPath, (BYTE*)dbgLog, strlen(dbgLog));
 
-#ifndef _XENON
+#ifndef _XBOX
 	if(loglvl <= 0)
 	{
-		Log(-1, "enter a number to exit\n");
-		int i;
-		cin >> i;
+		Log(-1, "press enter to exit\n");
+		getchar();
 	}
 #endif
+
     return 1;
 }

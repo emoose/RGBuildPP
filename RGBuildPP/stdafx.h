@@ -15,13 +15,17 @@
 #include <io.h>   // For access().
 #include <sys/types.h>  // For stat().
 #include <sys/stat.h>   // For stat().
+
 #ifdef _XBOX
 #include <xtl.h>
 #include <xboxmath.h>
-#endif
+#else
+
 #ifdef _WIN32
 #include <Windows.h>
 #else
+#endif
+
 #endif
 
 // TODO: reference additional headers your program requires here

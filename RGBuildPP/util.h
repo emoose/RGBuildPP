@@ -7,6 +7,7 @@
 #include "CXeFlashImage.h"
 extern void DbgPrint(const char* szFormat, ...);
 extern void Log(int priority, const char* szFormat, ...);
+extern errno_t saveDataf(const char* szPathFormat, BYTE * data, DWORD dwLength, ...);
 
 typedef ULONGLONG QWORD;
 typedef struct _X360_DEVICE
@@ -100,14 +101,18 @@ inline errno_t readData(PSZ path, BYTE ** data, DWORD* dwLength)
 	if(err != 0 || file == 0)
 		return err;
 	fseek(file, 0, SEEK_END);
-	*dwLength = ftell(file);
+	DWORD length = ftell(file);
+	if(*dwLength > 0 && length > *dwLength)
+		length = *dwLength;
+	*dwLength = length;
 	*data = (BYTE*)malloc(*dwLength);
 	fseek(file, 0, SEEK_SET);
 	fread(*data, 1, *dwLength, file);
 	fclose(file);
 	return 0;
 }
-inline errno_t saveData(PSZ path, BYTE * data, DWORD dwLength)
+
+__checkReturn inline errno_t saveData(PSZ path, BYTE * data, DWORD dwLength)
 {
 	FILE* file;
 	errno_t err = fopen_s(&file, path, "wb+");
@@ -120,6 +125,7 @@ inline errno_t saveData(PSZ path, BYTE * data, DWORD dwLength)
 	fclose(file);
 	return err;
 }
+
 inline BOOL directoryExists(PSZ path)
 {
 	if(_access(path, 0) != 0)

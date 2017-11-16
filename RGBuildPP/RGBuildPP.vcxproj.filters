@@ -74,7 +74,13 @@
     <ClInclude Include="INIReader.h">
       <Filter>Header Files\util</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="rgbp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CXeFlashDefines.h">
       <Filter>Header Files\nand</Filter>
     </ClInclude>
   </ItemGroup>
@@ -109,5 +115,8 @@
     <ClCompile Include="ini.cpp">
       <Filter>Source Files\util</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="RGBuildPP.rc" />
   </ItemGroup>
 </Project>

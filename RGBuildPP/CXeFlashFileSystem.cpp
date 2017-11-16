@@ -272,11 +272,14 @@ __checkReturn errno_t CXeFlashFileSystemRoot::Load(WORD wBlkIdx)
 {
 	// you should be able to call this to add entries from another fs root block
 	// this should _ONLY_ be done if the fs blockmap says that the block is in a chain
-
-	BYTE spare[0x10];
-	this->xepBlkDriver->ReadLilBlockSpare(wBlkIdx, (BYTE*)&spare);
-	this->dwVersion = this->xepBlkDriver->GetSpareSeqField(spare);
-
+	if(this->xepCoronaData == 0)
+	{
+		BYTE spare[0x10];
+		this->xepBlkDriver->ReadLilBlockSpare(wBlkIdx, (BYTE*)&spare);
+		this->dwVersion = this->xepBlkDriver->GetSpareSeqField(spare);
+	}
+	else
+		this->dwVersion = this->xepCoronaData->dwFSVersion;
 
 	BYTE* blkData = (BYTE*)malloc(this->xepBlkDriver->dwLilBlockLength);
 	this->xepBlkDriver->ReadLilBlock(wBlkIdx, blkData, this->xepBlkDriver->dwLilBlockLength);

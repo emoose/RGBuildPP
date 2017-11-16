@@ -350,7 +350,7 @@ __checkReturn errno_t CXeFlashBlockDriver::SaveImage(PSZ szPath)
 }
 __checkReturn errno_t CXeFlashBlockDriver::OpenImage(PSZ szPath)
 {
-	DWORD len;
+	DWORD len = 0xb000000;
 	if(errno_t err = readData(szPath, &this->pbImageData, &len) != 0)
 		return err;
 	return this->OpenContinue(len, 528);
@@ -359,6 +359,10 @@ __checkReturn errno_t CXeFlashBlockDriver::SaveDevice()
 {
 	// we should probably switch to loading from blocks instead of from pages
 #ifdef _XBOX
+	// lets do a quick recalc of the ecc
+	for(DWORD i = 0; i < this->dwPageCount; i++)
+		this->CalculateEDC((UINT*)(this->pbImageData + (i * 0x210)));
+
 	Log(0, "CXeFlashBlockDriver::SaveDevice: SFCX init\n");
 	int config = sfcx_init();
 	if (sfc.initialized != SFCX_INITIALIZED)
@@ -385,12 +389,10 @@ __checkReturn errno_t CXeFlashBlockDriver::SaveDevice()
 	DWORD len = sfc.size_bytes_phys;
 	// only read 64MB
 	if(len > 69206016) len = 69206016;
-	for(int i = 0; i < (len / sfc.block_sz_phys); i++)
+	for(DWORD i = 0; i < (len / sfc.block_sz_phys); i++)
 	{
 		sfcx_erase_block(i * sfc.block_sz);
 		sfcx_write_block(this->pbImageData + (i*sfc.block_sz_phys), i * sfc.block_sz);
-		//sfcx_read_page(this->pbImageData + (i * sfc.page_sz_phys), (i * sfc.page_sz), 1);
-		//sfcx_write_page(this->pbImageData + (i*sfc.page_sz_phys), (i * sfc.page_sz));
 	}
 	sfcx_reset();
 	//this->dwFlashConfig = config;
@@ -458,7 +460,7 @@ __checkReturn int CXeFlashBlockDriver::DetectSpareType()
     blockIdx = ((this->pbImageData[0x21200 + 0x2] & 0xF) << 8) | (this->pbImageData[0x21200 + 0x1]);
 	if (blockIdx == 1 && this->pbImageData[0x21200 + 0x0] == 0xFF)
 		return 2;
-    return -1;
+    return 3;
 }
 __checkReturn errno_t CXeFlashBlockDriver::CreateDefaults(DWORD imgLen, DWORD pageLen, DWORD spareType, DWORD flashConfig, DWORD fsOffset)
 {
@@ -495,6 +497,8 @@ __checkReturn errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen
 		// round up 16/64mb nands to nearest size
 		if(reallen <= 16777216)
 			reallen = 16777216;
+		else if (reallen == 0x0aaaaa00)//0xE0400000) // 4GB corona
+			reallen = 0x3000000;
 		else if (reallen <= 67108864)
 			reallen = 67108864;
 		switch(reallen)
@@ -538,6 +542,11 @@ __checkReturn errno_t CXeFlashBlockDriver::OpenContinue(DWORD len, DWORD pagelen
 				this->dwFSOffset = 0xAE0;
 				this->dwFlashConfig = 0x00AA3020;
 				break;
+			case 0x3000000: // 4GB corona
+				this->dwFSOffset = 0;
+				this->dwFlashConfig = 0x00060000;
+				this->dwPageLength = 512;
+				break;
 			default:
 				Log(3, "CXeFlashBlockDriver::OpenContinue: unknown NAND size, handling as 16MB!\n");
 				this->dwFlashConfig = 0x01198010;
@@ -552,47 +561,59 @@ __checkReturn errno_t CXeFlashBlockDriver::LoadFlashConfig()
 	
 	this->dwPatchSlotLength = 0x10000;
 	this->dwReserveBlockIdx = 0x3E0;
-	switch(this->dwFlashConfig >> 17 & 3)
+	// dirty
+	switch(this->dwFlashConfig)
 	{
-	case 0:
-		this->dwSpareType = 0;
-		switch(this->dwFlashConfig >> 4 & 3)
-		{
-		case 1:
-			this->dwBlockLength = 0x4000;
-			this->dwBlockCount = 0x400;
-			break;
-		case 3:
-			this->dwBlockLength = 0x4000;
-			this->dwBlockCount = 0x1000;
-			this->dwReserveBlockIdx = 0xF80;
-			break;
-		}
+	case 0x00060000: // 4GB corona
+		this->dwBlockLength = 0x4000;
+		this->dwBlockCount = 0xC00;
+		this->dwReserveBlockIdx = 0xC00;
+		this->dwSpareType = 3;
 		break;
-	case 1:
-	case 2:
-		switch(this->dwFlashConfig >> 4 & 3)
+
+	default:
+		switch(this->dwFlashConfig >> 17 & 3)
 		{
 		case 0:
-			this->dwBlockLength = 0x4000;
-			this->dwBlockCount = 0x400;
-			this->dwSpareType = 1;
+			this->dwSpareType = 0;
+			switch(this->dwFlashConfig >> 4 & 3)
+			{
+			case 1:
+				this->dwBlockLength = 0x4000;
+				this->dwBlockCount = 0x400;
+				break;
+			case 3:
+				this->dwBlockLength = 0x4000;
+				this->dwBlockCount = 0x1000;
+				this->dwReserveBlockIdx = 0xF80;
+				break;
+			}
 			break;
 		case 1:
-			this->dwBlockLength = 0x4000;
-			this->dwBlockCount = 0x1000;
-			if(this->dwImageLengthReal == 16777216 || this->dwImageLengthReal == 17301504)
-				this->dwBlockCount = 0x400; 
-			this->dwSpareType = 1;
-			break;
 		case 2:
-			this->dwBlockLength = 0x20000;
-			this->dwBlockCount = this->dwImageLengthReal / ((this->dwBlockLength / 512) * this->dwPageLength);
-			this->dwSpareType = 2;
-			this->dwPatchSlotLength = 0x20000;
-			this->dwReserveBlockIdx = 0x1E0;
+			switch(this->dwFlashConfig >> 4 & 3)
+			{
+			case 0:
+				this->dwBlockLength = 0x4000;
+				this->dwBlockCount = 0x400;
+				this->dwSpareType = 1;
+				break;
+			case 1:
+				this->dwBlockLength = 0x4000;
+				this->dwBlockCount = 0x1000;
+				if(this->dwImageLengthReal == 16777216 || this->dwImageLengthReal == 17301504)
+					this->dwBlockCount = 0x400; 
+				this->dwSpareType = 1;
+				break;
+			case 2:
+				this->dwBlockLength = 0x20000;
+				this->dwBlockCount = this->dwImageLengthReal / ((this->dwBlockLength / 512) * this->dwPageLength);
+				this->dwSpareType = 2;
+				this->dwPatchSlotLength = 0x20000;
+				this->dwReserveBlockIdx = 0x1E0;
+			}
+			break;
 		}
-		break;
 	}
 	this->dwConfigBlockIdx = dwReserveBlockIdx - 4;
 	this->dwLilBlockLength = 0x4000; // static?

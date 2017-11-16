@@ -2,14 +2,16 @@
 #include "CXeKeyVault.h"
 #include "XeCrypt.h"
 #include "util.h"
+#include "version.h"
 #ifndef _XBOX
 #include <wincrypt.h>
 #endif
 
 // shhh... lets not leak our hard work
-#ifdef _DEBUG
+#if !RGB_VER_MIN
 #include "rgbp.h"
 #endif
+
 __checkReturn errno_t CXeKeyVault::CalculateNonce(BYTE* pbNonceBuff, DWORD cbNonceBuff)
 {
 	WORD kvVer = bswap16(*this->pwKeyVaultVersion);
@@ -176,9 +178,11 @@ __checkReturn errno_t CXeKeyVault::Crypt(BOOL isDecrypting)
 	this->bIsDecrypted = FALSE;
 	if(!isDecrypting)
 		return 0;
-	this->bIsDecrypted = TRUE;
 	if(!memcmp(&nonce, &calcnonce, 0x10)) // make sure the nonce is equal to what we expect
+	{
+		this->bIsDecrypted = TRUE;
 		return 0;
+	}
 	return 1;
 }
 __checkReturn errno_t CXeKeyVault::Save(BOOL saveEncrypted)

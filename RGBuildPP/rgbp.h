@@ -1,15 +1,13 @@
-// RGBuildPP PRIVATE header file
-// >>>NOT TO BE SHARED<<<
+// RGBuildPP private header file
 
-// these functions have their names obfuscated (kinda) so we can include refs to them in main code and not have to worry about it so much
-// to use these, just drop this into rgb's src folder and put a #include "rgbp.h" in CXeFlashImage.cpp and CXeKeyVault.cpp
-// be sure to remove this file, the include refs and the ref to rgbp.h in the project before any kind of source release!
-// to find the include refs easier, search the solution for 
-// shhh... lets not leak our hard work
+// NEVER use the main functions in code!
+// if you need to use randomizeKeysContinue, call rkc
+// or for resign4BL call rbl instead
+// TODO: fix windows keyvault private key generation
 
 #ifndef RGBPH
 #define RGBPH
-inline BOOL rkc(CXeKeyVault* kv)
+inline BOOL randomizeKeysContinue(CXeKeyVault* kv)
 {
 	XeRsaKey rsaPub;
     XeRsaKey rsaPrv;
@@ -187,7 +185,7 @@ inline BOOL rkc(CXeKeyVault* kv)
 		// seems to be some kind of algo for the consoleid
 		// XeKeysGetConsoleID panics if last byte of consoleid has bit 1 or 2 set
 		// think this stops it from being set somehow
-		// maybe last byte is a check byte?
+		// maybe last byte is a check byte
 		while(true)
 		{
 			if(idtest != 0)
@@ -261,7 +259,7 @@ inline BOOL rkc(CXeKeyVault* kv)
 	// now fix the des keys and we're done
 	return kv->RepairDesKeys();
 }
-inline BOOL rbl(CXeBootloader4BL* bl)
+inline BOOL resign4BL(CXeBootloader4BL* bl)
 {
 	if((bl->blHdr.wMagic & 0x1000) != 0x1000)
 		return TRUE; // we can't sign retail bootloaders :(
@@ -306,4 +304,15 @@ inline BOOL rbl(CXeBootloader4BL* bl)
 		return false;
 	return XeCryptBnQwNeRsaPrvCrypt(tempSig, (u64*)&bl->pbData[0x20], (XeRsaKey*)&signKey);
 }
+
+// aliases to use in main code
+inline BOOL rkc(CXeKeyVault* kv)
+{
+	return randomizeKeysContinue(kv);
+}
+inline BOOL rbl(CXeBootloader4BL* bl)
+{
+	return resign4BL(bl);
+}
+
 #endif
